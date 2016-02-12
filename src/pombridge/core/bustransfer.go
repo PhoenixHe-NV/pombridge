@@ -1,8 +1,9 @@
-package pombridge
+package core
+
 import (
 	"net"
 	"sync"
-	"sync/atomic"
+	"pombridge/leakybuf"
 )
 
 var SendBus = make(MsgChan)
@@ -16,7 +17,7 @@ type BusLine struct {
 	recvChan chan Message
 }
 
-func OpenChannel(channel uint16, recvChan chan Message) {
+func OpenChannel(channel uint16, recvChan MsgChan) {
 	busesMutex.Lock()
 	defer busesMutex.Unlock()
 
@@ -30,17 +31,18 @@ func CloseChannel(channel uint16) {
 	delete(recvBuses, channel)
 }
 
-func BusChannel(channel uint16) (chan Message, bool) {
+func BusChannel(channel uint16) (MsgChan, bool) {
 	busesMutex.RLock()
 	defer busesMutex.RUnlock()
 
-	return recvBuses[channel]
+	ch, ok := recvBuses[channel]
+	return ch, ok
 }
 
 func (busLine *BusLine) runSend() {
-	buf := leakyBuf.Get()
-	defer leakyBuf.Put(buf)
-	var msg Message = nil
+	buf := leakybuf.Get()
+	defer leakybuf.Put(buf)
+	var msg *Message = nil
 
 	for {
 		select {
@@ -71,8 +73,8 @@ func (busLine *BusLine) runSend() {
 }
 
 func (busLine *BusLine) runRecv() {
-	buf := leakyBuf.Get()
-	defer leakyBuf.Put(buf)
+	buf := leakybuf.Get()
+	defer leakybuf.Put(buf)
 
 	for {
 		err := ReadAll(busLine.conn, buf[:PacketHeaderLen])

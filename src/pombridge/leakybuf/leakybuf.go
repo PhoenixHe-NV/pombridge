@@ -1,5 +1,5 @@
 // Provides leaky buffer, based on the example in Effective Go.
-package pombridge
+package leakybuf
 
 type LeakyBuf struct {
 	bufSize  int // size of each buffer
@@ -42,4 +42,12 @@ func (lb *LeakyBuf) Put(b []byte) {
 	default:
 	}
 	return
+}
+
+func Get() (b []byte) {
+	return leakyBuf.Get()
+}
+
+func Put(b []byte) {
+	leakyBuf.Put(b)
 }

@@ -1,11 +1,14 @@
-package pombridge
+package core
+
 import (
 	"net"
 	"time"
+	"pombridge/log"
+	"pombridge/leakybuf"
 )
 
 func ConnPrepareRead(conn net.Conn) {
-	conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+	conn.SetWriteDeadline(time.Now().Add(readTimeout))
 }
 
 func ConnPrepareWrite(conn net.Conn) {
@@ -49,23 +52,23 @@ func WriteAll(conn net.Conn, data []byte) error {
 func ConnCopy(src, dst net.Conn) {
 	defer dst.Close()
 
-	buf := leakyBuf.Get()
-	defer leakyBuf.Put(buf)
+	buf := leakybuf.Get()
+	defer leakybuf.Put(buf)
 
 	for {
 		ConnPrepareRead(src)
-		Log.D("READ")
+		log.D("READ")
 		count, err := src.Read(buf)
 		if err != nil {
 			return
 		}
-		Log.D("READ ", count)
+		log.D("READ ", count)
 
 		err = WriteAll(dst, buf[:count])
 		if err != nil {
 			return
 		}
 
-		Log.D("WRITE ", count)
+		log.D("WRITE ", count)
 	}
 }

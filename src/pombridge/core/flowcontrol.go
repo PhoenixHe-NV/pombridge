@@ -1,12 +1,17 @@
-package pombridge
+package core
+
 import (
 	"sync"
-	"github.com/bjarneh/binheap"
+	"pombridge/heap"
 	"math"
 )
 
+type Bridge struct {
+
+}
+
 type BridgeFlow struct {
-	mutex sync.RWMutex
+	mutex *sync.RWMutex
 	seq, ack uint16
 }
 
@@ -52,7 +57,7 @@ func (msg *Message) Priority() int {
 	p := int(msg.seq)
 	// This algorithm works because we only need to guarantee
 	// the comparisons between priority are correct
-	if p < FlowControl.ack {
+	if p < int(FlowControl.ack) {
 		p = p + math.MaxInt16
 	}
 
@@ -60,16 +65,28 @@ func (msg *Message) Priority() int {
 }
 
 func runFlowControl() {
-	heap := binheap.New()
+	heap := heap.New()
 
 	for {
 		msg := <- recv
-		heap.Add(msg)
+		heap.Push(msg)
 
 		ack := FlowControl.ack
-		for {
-			msg := heap.Remove().(Message)
-			// TODO
+		for !heap.Empty() {
+			msg := heap.Top().(*Message)
+			if msg.seq != ack + 1 {
+				break
+			}
+
+			heap.Pop()
+			ack = msg.seq
+			ch, ok := BusChannel(msg.channel)
+			if !ok {
+				// channel not found, ignored
+				break
+			}
+
+			ch <- msg
 		}
 	}
 }

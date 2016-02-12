@@ -1,27 +1,27 @@
 package main
 
 import (
-	pb "pombridge"
+	bridge "pombridge"
+	"pombridge/log"
 	"net"
+	"pombridge/core"
 )
 
-var Log *pb.PomLogger = &pb.Log
+var server = bridge.NewServer()
 
 func main() {
-	pb.CommonInit()
-
 }
 
 func run() {
-	err := pb.Listen()
+	err := server.Listen(bridge.Addr{"127.0.0.1", 8000})
 	if err != nil {
-		Log.F("bridge listen: ", err)
+		log.F("bridge listen: ", err)
 	}
 
 	for {
-		conn, err := pb.Accept()
+		conn, err := server.Accept()
 		if (err != nil) {
-			Log.E("bridge accept: ", err)
+			log.E("bridge accept: ", err)
 			continue
 		}
 
@@ -33,11 +33,11 @@ func run() {
 func handleConn(conn net.Conn) {
 	remote, err := net.Dial("tcp", "127.0.0.1:8080")
 	if err != nil {
-		Log.W("Cannot dail remote")
+		log.W("Cannot dail remote")
 		conn.Close()
 		return
 	}
 
-	go pb.ConnCopy(conn, remote)
-	pb.ConnCopy(remote, conn)
+	go core.ConnCopy(conn, remote)
+	core.ConnCopy(remote, conn)
 }
