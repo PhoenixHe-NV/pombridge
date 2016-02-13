@@ -3,6 +3,7 @@ package core
 import (
 	"net"
 	"pombridge/leakybuf"
+	"pombridge/log"
 	"sync"
 )
 
@@ -12,12 +13,6 @@ type Bridge struct {
 	SendBus         MsgChan
 	highPrioSendBus MsgChan
 	recvBuses       map[uint16](MsgChan) // map channel to wait chan
-}
-
-type BusLine struct {
-	bridge   *Bridge
-	conn     net.Conn
-	recvChan chan Message
 }
 
 func NewBridge() *Bridge {
@@ -37,6 +32,9 @@ func (b *Bridge) OpenChannel(channel uint16, recvChan MsgChan) {
 	defer b.busesMutex.Unlock()
 
 	b.recvBuses[channel] = recvChan
+	msg := b.flow.NewMsgToSend(channel, nil)
+	msg.syn = true
+	b.SendBus <- msg
 }
 
 func (b *Bridge) CloseChannel(channel uint16) {
@@ -44,6 +42,9 @@ func (b *Bridge) CloseChannel(channel uint16) {
 	defer b.busesMutex.Unlock()
 
 	delete(b.recvBuses, channel)
+	msg := b.flow.NewMsgToSend(channel, nil)
+	msg.fin = true
+	b.SendBus <- msg
 }
 
 func (b *Bridge) BusChannel(channel uint16) (MsgChan, bool) {
@@ -54,56 +55,77 @@ func (b *Bridge) BusChannel(channel uint16) (MsgChan, bool) {
 	return ch, ok
 }
 
-func (b *BusLine) runSend() {
+func (bridge *Bridge) RunBusLine(conn net.Conn) {
+	connClosed := make(chan int)
+	go bridge.RunBusLineRecv(conn, connClosed)
+	bridge.RunBusLineSend(conn, connClosed)
+	close(connClosed)
+}
+
+func (bridge *Bridge) RunBusLineSend(conn net.Conn, connClosed chan int) {
 	buf := leakybuf.Get()
 	defer leakybuf.Put(buf)
 	var msg *Message = nil
 
+LOOP:
 	for {
 		select {
-		case msg = <-b.bridge.highPrioSendBus:
-		case msg = <-b.bridge.SendBus:
+		case msg = <-bridge.highPrioSendBus:
+		case msg = <-bridge.SendBus:
+		case <-connClosed:
+			break LOOP
 		}
 
 		msg.ack = msg.flow.Ack()
 		msg.PacketHeader(buf)
-		err := WriteAll(b.conn, buf[:PacketHeaderLen])
+		log.D("msg > seq:", msg.seq, " ack:", msg.ack,
+			" channel:", msg.channel, " syn:", msg.syn, " fin:", msg.fin)
+		log.D("msg > ", string(msg.data))
+		err := WriteAll(conn, buf[:MsgeaderLen])
 		if err != nil {
+			log.D("BuslineSend: ", err)
 			break
 		}
-		err = WriteAll(b.conn, msg.data)
+		err = WriteAll(conn, msg.data)
 		if err != nil {
+			log.D("BuslineSend: ", err)
 			break
 		}
 
 		msg = nil
 	}
 
-	b.conn.Close()
+	conn.Close()
 	if msg != nil {
 		// resend the message
-		b.bridge.highPrioSendBus <- msg
+		bridge.highPrioSendBus <- msg
 	}
 }
 
-func (b *BusLine) runRecv() {
+func (bridge *Bridge) RunBusLineRecv(conn net.Conn, connClosed chan int) {
 	buf := leakybuf.Get()
 	defer leakybuf.Put(buf)
 
 	for {
-		err := ReadAll(b.conn, buf[:PacketHeaderLen])
+		log.D("ready to recv header in busline")
+		err := ReadAll(conn, buf[:MsgeaderLen])
 		if err != nil {
+			log.D("BuslineRecv: ", err)
 			break
 		}
 		msg, dataLen := ParseMessageHeader(buf)
+		msg.flow = bridge.flow
 		msg.data = make([]byte, dataLen)
-		err = ReadAll(b.conn, msg.data)
+		log.D("ready to recv body in busline, len:", dataLen)
+		err = ReadAll(conn, msg.data)
 		if err != nil {
+			log.D("BuslineRecv: ", err)
 			break
 		}
 
 		msg.flow.RecvMsg(msg)
 	}
 
-	b.conn.Close()
+	connClosed <- 1
+	conn.Close()
 }

@@ -3,7 +3,6 @@ package core
 import (
 	"net"
 	"pombridge/leakybuf"
-	"pombridge/log"
 	"time"
 )
 
@@ -57,18 +56,14 @@ func ConnCopy(src, dst net.Conn) {
 
 	for {
 		ConnPrepareRead(src)
-		log.D("READ")
 		count, err := src.Read(buf)
 		if err != nil {
 			return
 		}
-		log.D("READ ", count)
 
 		err = WriteAll(dst, buf[:count])
 		if err != nil {
 			return
 		}
-
-		log.D("WRITE ", count)
 	}
 }

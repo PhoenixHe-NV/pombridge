@@ -3,6 +3,7 @@ package core
 import (
 	"math"
 	"pombridge/heap"
+	"pombridge/log"
 	"sync"
 )
 
@@ -21,6 +22,7 @@ func (b *Bridge) initFlow() {
 		ack:    0,
 		recv:   make(MsgChan),
 	}
+	go b.flow.runFlowControl()
 }
 
 func (f *Flow) NewMsgToSend(channel uint16, b []byte) *Message {
@@ -60,6 +62,9 @@ func (f *Flow) setAck(ack uint16) {
 }
 
 func (f *Flow) RecvMsg(msg *Message) {
+	log.D("msg < seq:", msg.seq, " ack:", msg.ack,
+		" channel:", msg.channel, " syn:", msg.syn, " fin:", msg.fin)
+	log.D("msg < ", string(msg.data))
 	f.recv <- msg
 }
 
@@ -78,10 +83,12 @@ func (msg *Message) Priority() int {
 	return p
 }
 
+// TODO add chan to inform bridge closed
 func (f *Flow) runFlowControl() {
 	heap := heap.New()
 
 	for {
+		log.D("ready to recv in flow control")
 		msg := <-f.recv
 		heap.Push(msg)
 
@@ -96,8 +103,13 @@ func (f *Flow) runFlowControl() {
 			ack = msg.seq
 			ch, ok := f.bridge.BusChannel(msg.channel)
 			if !ok {
+				if msg.syn {
+					// new channel to accept
+					log.D("new channel request: ", msg.channel)
+				}
 				// channel not found, ignored
-				break
+				log.D("ignore packet from unknown channel: ", msg.channel)
+				continue
 			}
 
 			ch <- msg

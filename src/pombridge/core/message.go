@@ -26,9 +26,9 @@ type Message struct {
 type MsgChan chan *Message
 
 const (
-	versionMajor    = 1
-	versionMinor    = 0
-	PacketHeaderLen = 20
+	versionMajor = 1
+	versionMinor = 0
+	MsgeaderLen  = 20
 )
 
 func boolToByte(b bool) byte {
@@ -45,7 +45,7 @@ func bytesToUint16(b []byte) uint16 {
 }
 
 func (msg *Message) PacketHeader(buf []byte) {
-	packetLen := PacketHeaderLen + len(msg.data)
+	packetLen := MsgeaderLen + len(msg.data)
 
 	binary.PutUvarint(buf[0:4], uint64(packetLen))
 	buf[4] = versionMajor
@@ -66,5 +66,5 @@ func ParseMessageHeader(buf []byte) (*Message, uint16) {
 		channel: bytesToUint16(buf[16:20]),
 	}
 
-	return msg, bytesToUint16(buf[:4])
+	return msg, bytesToUint16(buf[:4]) - MsgeaderLen
 }
