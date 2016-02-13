@@ -1,29 +1,43 @@
 package core
 
 import (
-	"sync"
-	"pombridge/heap"
 	"math"
+	"pombridge/heap"
+	"sync"
 )
 
-type Bridge struct {
-
-}
-
-type BridgeFlow struct {
-	mutex *sync.RWMutex
+type Flow struct {
+	bridge   *Bridge
+	mutex    *sync.RWMutex
 	seq, ack uint16
+	recv     MsgChan
 }
 
-var FlowControl = &BridgeFlow{
-	mutex: &sync.RWMutex{},
-	seq: 0,
-	ack: 0,
+func (b *Bridge) initFlow() {
+	b.flow = &Flow{
+		bridge: b,
+		mutex:  &sync.RWMutex{},
+		seq:    0,
+		ack:    0,
+		recv:   make(MsgChan),
+	}
 }
 
-var recv = make(MsgChan)
+func (f *Flow) NewMsgToSend(channel uint16, b []byte) *Message {
+	msg := &Message{
+		flow:    f,
+		syn:     false,
+		fin:     false,
+		seq:     f.NextSeq(),
+		channel: channel,
+		data:    make([]byte, len(b)),
+	}
+	copy(msg.data, b)
 
-func (f *BridgeFlow) NextSeq() uint16 {
+	return msg
+}
+
+func (f *Flow) NextSeq() uint16 {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
 
@@ -31,22 +45,22 @@ func (f *BridgeFlow) NextSeq() uint16 {
 	return f.seq
 }
 
-func (f *BridgeFlow) Ack() uint16 {
+func (f *Flow) Ack() uint16 {
 	f.mutex.RLock()
 	defer f.mutex.RUnlock()
 
 	return f.ack
 }
 
-func (f *BridgeFlow) setAck(ack uint16) {
+func (f *Flow) setAck(ack uint16) {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
 
 	f.ack = ack
 }
 
-func (f *BridgeFlow) RecvMsg(msg *Message) {
-	recv <- msg
+func (f *Flow) RecvMsg(msg *Message) {
+	f.recv <- msg
 }
 
 func (msg *Message) Priority() int {
@@ -57,30 +71,30 @@ func (msg *Message) Priority() int {
 	p := int(msg.seq)
 	// This algorithm works because we only need to guarantee
 	// the comparisons between priority are correct
-	if p < int(FlowControl.ack) {
+	if p < int(msg.flow.ack) {
 		p = p + math.MaxInt16
 	}
 
 	return p
 }
 
-func runFlowControl() {
+func (f *Flow) runFlowControl() {
 	heap := heap.New()
 
 	for {
-		msg := <- recv
+		msg := <-f.recv
 		heap.Push(msg)
 
-		ack := FlowControl.ack
+		ack := f.ack
 		for !heap.Empty() {
 			msg := heap.Top().(*Message)
-			if msg.seq != ack + 1 {
+			if msg.seq != ack+1 {
 				break
 			}
 
 			heap.Pop()
 			ack = msg.seq
-			ch, ok := BusChannel(msg.channel)
+			ch, ok := f.bridge.BusChannel(msg.channel)
 			if !ok {
 				// channel not found, ignored
 				break

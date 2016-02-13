@@ -6,7 +6,7 @@ type LeakyBuf struct {
 	freeList chan []byte
 }
 
-const leakyBufSize = 1024		// Smaller than common MTU 1500
+const leakyBufSize = 1024 // Smaller than common MTU 1500
 const maxNBuf = 2048
 
 var leakyBuf = NewLeakyBuf(maxNBuf, leakyBufSize)

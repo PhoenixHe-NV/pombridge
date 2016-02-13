@@ -13,20 +13,21 @@ import "encoding/binary"
 	|-------------------------------|
 16|    channel    |    data..     |
 	|-------------------------------|
- */
+*/
 
 type Message struct {
+	flow     *Flow
 	syn, fin bool
 	seq, ack uint16
-	channel uint16
-	data []byte
+	channel  uint16
+	data     []byte
 }
 
 type MsgChan chan *Message
 
 const (
-	versionMajor = 1
-	versionMinor = 0
+	versionMajor    = 1
+	versionMinor    = 0
 	PacketHeaderLen = 20
 )
 
@@ -57,13 +58,13 @@ func (msg *Message) PacketHeader(buf []byte) {
 }
 
 func ParseMessageHeader(buf []byte) (*Message, uint16) {
-	msg := Message{
-		syn: buf[6] > 0,
-		fin: buf[7] > 0,
-		seq: bytesToUint16(buf[8:12]),
-		ack: bytesToUint16(buf[12:16]),
+	msg := &Message{
+		syn:     buf[6] > 0,
+		fin:     buf[7] > 0,
+		seq:     bytesToUint16(buf[8:12]),
+		ack:     bytesToUint16(buf[12:16]),
 		channel: bytesToUint16(buf[16:20]),
 	}
 
-	return &msg, bytesToUint16(buf[:4])
+	return msg, bytesToUint16(buf[:4])
 }

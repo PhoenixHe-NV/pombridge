@@ -2,9 +2,9 @@ package core
 
 import (
 	"net"
-	"time"
-	"pombridge/log"
 	"pombridge/leakybuf"
+	"pombridge/log"
+	"time"
 )
 
 func ConnPrepareRead(conn net.Conn) {

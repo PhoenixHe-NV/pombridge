@@ -1,10 +1,10 @@
 package main
 
 import (
-	bridge "pombridge"
-	"pombridge/log"
 	"net"
+	bridge "pombridge"
 	"pombridge/core"
+	"pombridge/log"
 )
 
 var server = bridge.NewServer()
@@ -20,7 +20,7 @@ func run() {
 
 	for {
 		conn, err := server.Accept()
-		if (err != nil) {
+		if err != nil {
 			log.E("bridge accept: ", err)
 			continue
 		}

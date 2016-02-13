@@ -18,7 +18,6 @@ type Server struct {
 	core.Bridge
 }
 
-
 func NewClient() *Client {
 	return &Client{}
 }

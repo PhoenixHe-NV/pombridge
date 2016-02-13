@@ -1,12 +1,12 @@
 package main
 
 import (
-	bridge "pombridge"
-	"pombridge/log"
-	"pombridge/core"
 	"flag"
-	"net"
 	"fmt"
+	"net"
+	bridge "pombridge"
+	"pombridge/core"
+	"pombridge/log"
 )
 
 var client = bridge.NewClient()
@@ -24,7 +24,7 @@ func flagInit() {
 func main() {
 	flagInit()
 
-	client.Connect(bridge.Addr{"127.0.0.1", 8000} )
+	client.Connect(bridge.Addr{"127.0.0.1", 8000})
 	run("127.0.0.1:" + fmt.Sprint(config.listenPort))
 }
 
