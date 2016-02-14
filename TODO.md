@@ -1,0 +1,5 @@
+- Implement client cookies
+- Implement message resend mechanism when message lost detected
+- Support json config file
+- Refine README
+- Maybe some gui with beautiful statics

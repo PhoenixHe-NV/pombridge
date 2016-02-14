@@ -52,7 +52,6 @@ func (c *Client) Connect(addr Addr) {
 
 func (c *Client) runBusLine(addr Addr) {
 	// TODO use config param
-	// TODO use 2 or more connections to one addr
 	for {
 		conn, err := net.Dial("tcp", addr.String())
 		if err != nil {
