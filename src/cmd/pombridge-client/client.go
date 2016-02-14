@@ -25,6 +25,7 @@ func main() {
 	flagInit()
 
 	client.Connect(bridge.Addr{"127.0.0.1", 8000})
+	client.Connect(bridge.Addr{"127.0.0.1", 8000})
 	run("127.0.0.1:" + fmt.Sprint(config.listenPort))
 }
 
