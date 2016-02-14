@@ -13,6 +13,7 @@ type Bridge struct {
 	SendBus         MsgChan
 	highPrioSendBus MsgChan
 	recvBuses       map[uint16](MsgChan) // map channel to wait chan
+	AcceptChan      chan *Channel
 }
 
 func NewBridge() *Bridge {
@@ -21,6 +22,7 @@ func NewBridge() *Bridge {
 		SendBus:         make(MsgChan),
 		highPrioSendBus: make(MsgChan),
 		recvBuses:       make(map[uint16](MsgChan)),
+		AcceptChan:      make(chan *Channel),
 	}
 	b.initFlow()
 

@@ -10,22 +10,28 @@ import (
 )
 
 type Channel struct {
-	mutex  *sync.RWMutex
-	bridge *Bridge
-	id     uint16
-	closed bool
-	recv   chan *Message
+	mutex        *sync.RWMutex
+	bridge       *Bridge
+	id           uint16
+	closed       bool
+	recv         chan *Message
+	afterCloseFn func(*Channel)
 }
 
-func NewChannel(bridge *Bridge) *Channel {
+func (bridge *Bridge) NewChannel(id uint16) *Channel {
 	c := &Channel{
-		mutex:  &sync.RWMutex{},
-		bridge: bridge,
-		id:     0,
-		recv:   make(chan *Message),
+		mutex:        &sync.RWMutex{},
+		bridge:       bridge,
+		id:           id,
+		recv:         make(chan *Message),
+		afterCloseFn: nil,
 	}
-	bridge.OpenChannel(0, c.recv)
+	bridge.OpenChannel(id, c.recv)
 	return c
+}
+
+func (c *Channel) AfterClose(fn func(*Channel)) {
+	c.afterCloseFn = fn
 }
 
 func (c *Channel) Read(buf []byte) (int, error) {
@@ -33,8 +39,11 @@ func (c *Channel) Read(buf []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 
+	log.D("channel read ready")
 	msg := <-c.recv
-	if msg == nil || msg.fin {
+	log.D("channel read return")
+	if (msg == nil) || msg.fin {
+		log.D("Receive fin, closing channel ", c.id)
 		c.Close()
 		return 0, io.ErrClosedPipe
 	}
@@ -69,6 +78,9 @@ func (c *Channel) Close() error {
 	close(c.recv)
 	c.bridge.CloseChannel(c.id)
 	c.closed = true
+	if c.afterCloseFn != nil {
+		c.afterCloseFn(c)
+	}
 	return nil
 }
 

@@ -1,10 +1,13 @@
 package pombridge
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"net"
 	"pombridge/core"
 	"pombridge/log"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,13 +17,15 @@ type Addr struct {
 }
 
 // TODO use cookie to identify different clients
-
 type Client struct {
-	bridge *core.Bridge
+	bridge        *core.Bridge
+	freeChannelId chan uint16
+	maxChannelId  uint32
 }
 
 type Server struct {
-	bridge *core.Bridge
+	bridge    *core.Bridge
+	listening bool
 }
 
 func (addr Addr) String() string {
@@ -28,11 +33,17 @@ func (addr Addr) String() string {
 }
 
 func NewClient() *Client {
-	return &Client{core.NewBridge()}
+	return &Client{
+		bridge:        core.NewBridge(),
+		freeChannelId: make(chan uint16, math.MaxUint16),
+	}
 }
 
 func NewServer() *Server {
-	return &Server{core.NewBridge()}
+	return &Server{
+		bridge:    core.NewBridge(),
+		listening: false,
+	}
 }
 
 func (c *Client) Connect(addr Addr) {
@@ -59,7 +70,25 @@ func (c *Client) runBusLine(addr Addr) {
 }
 
 func (c *Client) Dial() (net.Conn, error) {
-	return core.NewChannel(c.bridge), nil
+	id := c.genNewChannelId()
+	conn := c.bridge.NewChannel(id)
+	conn.AfterClose(func(ch *core.Channel) {
+		c.freeChannelId <- id
+	})
+	return conn, nil
+}
+
+func (c *Client) genNewChannelId() uint16 {
+	select {
+	case id := <-c.freeChannelId:
+		return id
+	default:
+		id := atomic.AddUint32(&c.maxChannelId, 1)
+		if id > math.MaxUint16 {
+			log.E("Too many channels! ", id, " > ", math.MaxUint16)
+		}
+		return uint16(id)
+	}
 }
 
 func (s *Server) Listen(addr Addr) error {
@@ -67,6 +96,8 @@ func (s *Server) Listen(addr Addr) error {
 	if err != nil {
 		return err
 	}
+
+	s.listening = true
 
 	go s.runBusLine(listener)
 	return nil
@@ -93,6 +124,10 @@ func (s *Server) serveBusLine(conn net.Conn) {
 }
 
 func (s *Server) Accept() (net.Conn, error) {
-	time.Sleep(time.Hour)
-	return nil, nil
+	if !s.listening {
+		return nil, errors.New("bridge server is not listening")
+	}
+	conn := <-s.bridge.AcceptChan
+	log.D("accepted in server.Accept()")
+	return conn, nil
 }
