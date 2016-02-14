@@ -88,9 +88,7 @@ func (f *Flow) runFlowControl() {
 	heap := heap.New()
 
 	for {
-		log.D("ready to recv in flow control")
 		msg := <-f.recv
-		log.D("recv in flow control")
 		heap.Push(msg)
 
 		ack := f.ack
@@ -102,31 +100,38 @@ func (f *Flow) runFlowControl() {
 
 			heap.Pop()
 			ack = msg.seq
+
 			ch, ok := f.bridge.BusChannel(msg.channel)
 			if !ok {
-				log.D("channel not found in flow control")
 				if msg.syn {
 					// new channel to accept
-					conn := f.bridge.NewChannel(msg.channel)
-					select {
-					case f.bridge.AcceptChan <- conn:
-						log.D("new channel opened: ", msg.channel)
-					default:
-						conn.Close()
-						log.D("new channel denied: ", msg.channel)
+					if f.bridge.canAccept {
+						conn := f.bridge.NewChannel(msg.channel)
+						select {
+						case f.bridge.AcceptChan <- conn:
+							log.I("new channel opened: ", msg.channel)
+						default:
+							conn.Close()
+							log.I("new channel denied: ", msg.channel)
+						}
+						continue
 					}
-					continue
 				}
 				// channel not found, ignored
-				log.D("ignore packet from unknown channel: ", msg.channel)
+				log.I("ignore packet from unknown channel: ", msg.channel)
 				continue
 			}
 
 			log.D("dispatch msg to channel ", msg.channel)
-			ch <- msg
+			trySend(ch, msg)
 		}
 
 		f.setAck(ack)
 		// TODO set timeout to send extra ack packet
 	}
+}
+
+func trySend(ch MsgChan, msg *Message) {
+	defer func() { recover() }()
+	ch <- msg
 }

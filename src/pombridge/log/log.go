@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-var level = 0
+var level = InfoLevel
 
 const (
 	DebugLevel   = iota

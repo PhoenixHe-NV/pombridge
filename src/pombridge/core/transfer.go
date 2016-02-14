@@ -14,16 +14,21 @@ type Bridge struct {
 	highPrioSendBus MsgChan
 	recvBuses       map[uint16](MsgChan) // map channel to wait chan
 	AcceptChan      chan *Channel
+	canAccept       bool
 }
 
-func NewBridge() *Bridge {
+func NewBridge(acceptQueueLen uint) *Bridge {
 	b := &Bridge{
 		busesMutex:      &sync.RWMutex{},
 		SendBus:         make(MsgChan),
 		highPrioSendBus: make(MsgChan),
 		recvBuses:       make(map[uint16](MsgChan)),
-		AcceptChan:      make(chan *Channel),
 	}
+	if acceptQueueLen > 0 {
+		b.canAccept = true
+		b.AcceptChan = make(chan *Channel, acceptQueueLen)
+	}
+
 	b.initFlow()
 
 	return b
@@ -109,7 +114,6 @@ func (bridge *Bridge) RunBusLineRecv(conn net.Conn, connClosed chan int) {
 	defer leakybuf.Put(buf)
 
 	for {
-		log.D("ready to recv header in busline")
 		err := ReadAll(conn, buf[:MsgeaderLen])
 		if err != nil {
 			log.D("BuslineRecv: ", err)
@@ -118,7 +122,6 @@ func (bridge *Bridge) RunBusLineRecv(conn net.Conn, connClosed chan int) {
 		msg, dataLen := ParseMessageHeader(buf)
 		msg.flow = bridge.flow
 		msg.data = make([]byte, dataLen)
-		log.D("ready to recv body in busline, len:", dataLen)
 		err = ReadAll(conn, msg.data)
 		if err != nil {
 			log.D("BuslineRecv: ", err)

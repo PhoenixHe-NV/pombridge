@@ -34,14 +34,14 @@ func (addr Addr) String() string {
 
 func NewClient() *Client {
 	return &Client{
-		bridge:        core.NewBridge(),
+		bridge:        core.NewBridge(0),
 		freeChannelId: make(chan uint16, math.MaxUint16),
 	}
 }
 
 func NewServer() *Server {
 	return &Server{
-		bridge:    core.NewBridge(),
+		bridge:    core.NewBridge(5),
 		listening: false,
 	}
 }
@@ -128,6 +128,5 @@ func (s *Server) Accept() (net.Conn, error) {
 		return nil, errors.New("bridge server is not listening")
 	}
 	conn := <-s.bridge.AcceptChan
-	log.D("accepted in server.Accept()")
 	return conn, nil
 }

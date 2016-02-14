@@ -39,16 +39,14 @@ func (c *Channel) Read(buf []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 
-	log.D("channel read ready")
 	msg := <-c.recv
-	log.D("channel read return")
 	if (msg == nil) || msg.fin {
-		log.D("Receive fin, closing channel ", c.id)
 		c.Close()
 		return 0, io.ErrClosedPipe
 	}
 	if len(msg.data) > len(buf) {
 		log.E("Recevive message which size is bigger than excepted!")
+		c.Close()
 		return 0, errors.New("unexcepted message")
 	}
 	copy(buf, msg.data)
@@ -95,6 +93,7 @@ func (c *Channel) LocalAddr() net.Addr {
 	return nil
 }
 
+// TODO server side could return the client src
 func (c *Channel) RemoteAddr() net.Addr {
 	return nil
 }
